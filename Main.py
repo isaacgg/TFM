@@ -11,9 +11,6 @@ import numpy as np
 import commons.utils as utils
 from commons.RNN_CTC_base import RNN_CTC_base
 
-#import Floyd.scripts.commons.utils as utils
-#from Floyd.scripts.commons.RNN_CTC_base import RNN_CTC_base
-
 class BLSTM(RNN_CTC_base):
     def lstm_cell(self, n_hidden, dropout = 1):
         return tf.nn.rnn_cell.DropoutWrapper(tf.nn.rnn_cell.LSTMCell(n_hidden, state_is_tuple=True), 
@@ -31,7 +28,7 @@ class BLSTM(RNN_CTC_base):
     def logits_decode(self, logits, seq_length):
 #        decoded, probs = tf.nn.ctc_beam_search_decoder(logits, seq_length, 100, 1)
 #        return decoded[0],probs
-        decoded, probs = tf.nn.ctc_greedy_decoder(logits, seq_length)
+        decoded, probs = tf.nn.ctc_greedy_decoder(logits, seq_length) #greedy is faster
         return decoded[0], probs
     
     def optimizer_fn(self, lr, loss):
@@ -56,10 +53,6 @@ class BLSTM(RNN_CTC_base):
 
 
 def normalize_data(X_train, X_test, folder_name):
-#    if os.path.isfile(folder_name + "mean.pkl"):
-#        mean = utils.load_pickle(folder_name + "mean.pkl")
-#        std = utils.load_pickle(folder_name + "std.pkl")
-#    else:
     train_matrix = []
     for x in X_train:
         train_matrix.extend(x)
@@ -68,9 +61,6 @@ def normalize_data(X_train, X_test, folder_name):
     mean = np.array(train_matrix).mean(0)
     std = np.array(train_matrix).std(0)
         
-#        utils.save_pickle(folder_name + "mean.pkl", mean)
-#        utils.save_pickle(folder_name + "std.pkl", std)
-    
     X_train = [(x-mean)/std for x in X_train]
     X_test = [(x-mean)/std for x in X_test]
     
@@ -78,25 +68,16 @@ def normalize_data(X_train, X_test, folder_name):
 
 
 if __name__ == "__main__":
-#    folder_name = "./PreprocessedData/MFCCs_delta1/hann/"
-#    logdir = "./BLSTM/MFCC/Hann/"
-
-#    folder_name = "./PreprocessedData/RBMs_longtrain/hann/v2/400_50/"
-#    folder_name = "./PreprocessedData/RBMs_longtrain/hann/v2/400_50_dct/"
-#    folder_name = "./PreprocessedData/RBMs_longtrain/hann/v2/400_600/relub_600_50/relub_v2/"
-#    folder_name = "./PreprocessedData/MFCCSRBM/"
     
-#    folder_name = "./FinalFeatures/DBNfromRAW/GaussReLURBM_200/ReLUReLURBM_ft_900/ReLUReLURBM_ft_900/data/"
-#    folder_name = "./FinalFeatures/400hann160/mfcc/"
-    folder_name = "/timit-feats/"
-    logdir = "./LSTM_MFCC_RBM/"
+    folder_name = "/timit-feats/" # This folder contains X_train.npy as a list of np.arrays
+    logdir = "./LSTM_MFCC_RBM/" # Output folder
     
     epochs = 30
     lr = 0.0015
     batchsize = 8
     dropout = 0.85
     
-    n_feats = 500#50#900#26 #Esto da igual, se recalculan solas
+    n_feats = 500 # Esto da igual, se recalculan solas
     n_hidden = 128
     n_classes = 39 + 1
     
@@ -111,14 +92,11 @@ if __name__ == "__main__":
     y_test = np.array(utils.load_npy(y_test_path))
 
     X_train, X_test = normalize_data(X_train, X_test, folder_name)
-
-#    X_train = np.array([x[:,~np.any(np.isnan(x), axis=0)] for x in X_train])
-#    X_test = np.array([x[:,~np.any(np.isnan(x), axis=0)] for x in X_test])
-
+    
+    # Remove features with 0 variance (for RBM mostly)
     train_matrix = np.array(utils.to_matrix(X_train))
     std = train_matrix.std(0)
     good_features = np.where(std > 0)[0]
-    
     X_train = np.array([x[:,good_features] for x in X_train])
     X_test = np.array([x[:,good_features] for x in X_test])
 
@@ -126,9 +104,11 @@ if __name__ == "__main__":
     
     n_feats = X_train[0].shape[1]
         
+    # for quick tests
 #    X_train,y_train = utils.get_mini_dataset(X_train,y_train,500)
 #    X_test, y_test = utils.get_mini_dataset(X_test, y_test,100)
     
+    # Prepare y data
     y_train = utils.remove_q(utils.to_ctc(utils.reduce_labels(y_train, input_index = True, output_index = True)))
     y_test = utils.remove_q(utils.to_ctc(utils.reduce_labels(y_test, input_index = True, output_index = True)))
     
@@ -137,10 +117,8 @@ if __name__ == "__main__":
     
     rnn.set_data(X_train, X_test, y_train, y_test)
     
-    del(X_train, X_test, y_train, y_test)
-    
-#    rnn.load_weights(logdir)
-    
+    del(X_train, X_test, y_train, y_test) # To save memory
+        
     rnn.fit(n_epochs=epochs,
             batch_size=batchsize,
             learning_rate=lr,
@@ -149,16 +127,5 @@ if __name__ == "__main__":
             tboard = True,
             verbose=True,
             low_memory = True)
-
-#    rnn.load_weights(logdir)
-    
-#    rnn.fit(n_epochs=epochs,
-#            batch_size=batchsize,
-#            learning_rate=lr,
-#            dropout = 1,
-#            shuffle=True,
-#            tboard = True,
-#            verbose=True,
-#            low_memory = False)
 
     rnn.save_weights(logdir)
