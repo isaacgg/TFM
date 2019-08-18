@@ -69,7 +69,7 @@ def normalize_data(X_train, X_test, folder_name):
 
 if __name__ == "__main__":
     
-    folder_name = "/timit-feats/" # This folder contains X_train.npy as a list of np.arrays
+    folder_name = "./timit-feats/" # This folder contains X_train.npy as a list of np.arrays
     logdir = "./LSTM_MFCC_RBM/" # Output folder
     
     epochs = 30
